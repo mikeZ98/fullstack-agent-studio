@@ -6,7 +6,10 @@ export default defineConfig({
   plugins: [react()],
   cacheDir: ".cache/vite",
   resolve: {
-    alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) },
+    alias: {
+      "@": fileURLToPath(new URL("./src", import.meta.url)),
+      "~tests": fileURLToPath(new URL("./tests", import.meta.url)),
+    },
   },
   test: {
     environment: "jsdom",

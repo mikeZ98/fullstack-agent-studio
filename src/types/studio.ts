@@ -1,0 +1,28 @@
+// Shared type surface for UI code. Every contract type is inferred from its Zod schema in
+// src/lib/schemas; nothing here may be declared by hand (enforced by contracts.test.ts).
+export type {
+  AppErrorCode,
+  ArtifactEntry,
+  ArtifactLanguage,
+  ArtifactMetadata,
+  ArtifactPayload,
+  ArtifactState,
+  ArtifactType,
+  CanvasState,
+  CanvasTab,
+  CanvasViewMode,
+  FinishReason,
+  Identifier,
+  JsonValue,
+  MessageMetadata,
+  ProblemDetails,
+  SseFrameResult,
+  StreamEvent,
+  StreamEventType,
+  StreamParseError,
+  StreamParseResult,
+  StudioDataParts,
+  StudioUIMessage,
+  TokenUsage,
+  ValidationIssue,
+} from "@/lib/schemas";

@@ -99,8 +99,8 @@ describe("tsconfig.json", () => {
     expect(compilerOptions["allowJs"]).toBe(false);
   });
 
-  it("maps @/* to ./src/*", () => {
-    expect(compilerOptions.paths).toEqual({ "@/*": ["./src/*"] });
+  it("maps @/* to ./src/* and ~tests/* to ./tests/*", () => {
+    expect(compilerOptions.paths).toEqual({ "@/*": ["./src/*"], "~tests/*": ["./tests/*"] });
   });
 });
 

@@ -34,7 +34,8 @@
       }
     ],
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "~tests/*": ["./tests/*"]
     },
     "esModuleInterop": true
   },
