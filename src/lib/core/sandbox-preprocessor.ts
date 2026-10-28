@@ -146,12 +146,15 @@ export function generateNonce(): string {
 export function buildRunnerCsp(
   nonce: string,
   scriptHosts: readonly string[] = RUNNER_SCRIPT_HOSTS,
+  options: { allowBlobScripts?: boolean } = {},
 ): string {
   if (!NONCE_RE.test(nonce)) throw new Error("CSP nonce must be at least 16 base64 characters");
   const https = (hosts: readonly string[]) => hosts.map((host) => `https://${host}`);
+  // blob: lets a nonce'd bootstrap import code it compiled itself, without 'unsafe-eval'.
+  const blob = options.allowBlobScripts === true ? ["blob:"] : [];
   return [
     "default-src 'none'",
-    ["script-src", `'nonce-${nonce}'`, ...https(scriptHosts)].join(" "),
+    ["script-src", `'nonce-${nonce}'`, ...blob, ...https(scriptHosts)].join(" "),
     ["style-src", "'unsafe-inline'", ...https(RUNNER_STYLE_HOSTS)].join(" "),
     ["font-src", "data:", ...https(RUNNER_FONT_HOSTS)].join(" "),
     "img-src data: blob:",
