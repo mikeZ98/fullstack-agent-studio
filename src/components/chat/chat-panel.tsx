@@ -2,6 +2,9 @@
 
 import { RotateCcw, Sparkles, TriangleAlert } from "lucide-react";
 
+import { useState } from "react";
+
+import { BLOCKING_VIOLATIONS, VIOLATION_MESSAGES } from "@/lib/guardrails/input-guardrails";
 import { ProblemDetailsSchema } from "@/lib/schemas";
 
 import { useStudio } from "../studio-provider";
@@ -26,11 +29,23 @@ export function describeError(error: Error): { title: string; detail: string | u
 }
 
 export function ChatPanel() {
-  const { chat } = useStudio();
-  const { messages, status, error, sendMessage, stop, regenerate } = chat;
+  const { chat, sendUserMessage } = useStudio();
+  const { messages, status, error, stop, regenerate } = chat;
   const busy = status === "submitted" || status === "streaming";
-  const send = (text: string) => void sendMessage({ text });
+  const [refusal, setRefusal] = useState<string[] | null>(null);
   const problem = error === undefined ? null : describeError(error);
+
+  // Pre-submission input guardrails: refused messages stay in the field, with the reasons.
+  function send(text: string): boolean {
+    const assessment = sendUserMessage(text);
+    const blocking = assessment.violations.filter((violation) =>
+      BLOCKING_VIOLATIONS.has(violation),
+    );
+    setRefusal(
+      assessment.allowed ? null : blocking.map((violation) => VIOLATION_MESSAGES[violation]),
+    );
+    return assessment.allowed;
+  }
 
   return (
     <section aria-label="Chat" className="flex h-full min-h-0 flex-col">
@@ -75,6 +90,20 @@ export function ChatPanel() {
       )}
 
       <div className="p-3 pt-1">
+        {refusal !== null && (
+          <div
+            role="alert"
+            aria-label="Message not sent"
+            className="mb-2 rounded-lg border border-amber-500/40 bg-amber-500/5 p-2.5 text-sm"
+          >
+            <p className="font-medium">This message was not sent.</p>
+            <ul className="mt-1 list-disc pl-5 text-muted-foreground">
+              {refusal.map((reason) => (
+                <li key={reason}>{reason}</li>
+              ))}
+            </ul>
+          </div>
+        )}
         <ChatInput onSubmit={send} onStop={() => void stop()} busy={busy} />
       </div>
     </section>

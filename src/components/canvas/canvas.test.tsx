@@ -5,10 +5,12 @@ import {
   type ArtifactRecord,
   type ArtifactStoreAction,
   artifactReducer,
+  contentHash,
   INITIAL_ARTIFACT_STORE,
   selectArtifact,
 } from "@/lib/core/artifact-reducer";
 import type { CanvasAction } from "@/lib/core/canvas-reducer";
+import { CircuitBreaker, RUNNER_CHANNEL } from "@/lib/guardrails/sandbox-guard";
 import { renderWithStudio, sealedArtifact, studioValue } from "~tests/fixtures/studio";
 
 import { ArtifactPreview } from "./artifact-preview";
@@ -238,7 +240,9 @@ describe("ArtifactPreview", () => {
   it("explains why a preview is unavailable", async () => {
     render(<ArtifactPreview type="mermaid" language="mermaid" content="not a diagram" title="D" />);
     expect(await screen.findByText("Preview unavailable")).toBeInTheDocument();
-    expect(screen.getByText(/Unsupported or missing Mermaid diagram type/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/A Mermaid diagram must start with a supported type/),
+    ).toBeInTheDocument();
   });
 
   it("ignores a stale preview when the content changes quickly", async () => {
@@ -426,5 +430,80 @@ describe("CanvasPanel", () => {
     expect(screen.getByRole("tab", { name: "ghost" })).toBeInTheDocument();
     expect(screen.getByText("No artifact open")).toBeInTheDocument();
     await act(async () => undefined);
+  });
+});
+
+describe("ArtifactPreview — sandbox watchdog", () => {
+  const HTML = "<p>Hello</p>";
+
+  async function mount(breaker = new CircuitBreaker(2)) {
+    render(
+      <ArtifactPreview
+        type="html"
+        language="html"
+        content={HTML}
+        title="Watched"
+        bootTimeoutMs={80}
+        stallTimeoutMs={80}
+        breaker={breaker}
+      />,
+    );
+    const frame = (await screen.findByTitle("Watched preview")) as HTMLIFrameElement;
+    const token = /"token":"([^"]+)"/.exec(frame.getAttribute("srcdoc") ?? "")?.[1] ?? "";
+    const post = (
+      data: Record<string, unknown>,
+      source: MessageEventSource | null = frame.contentWindow,
+    ) =>
+      act(() => {
+        window.dispatchEvent(
+          new MessageEvent("message", {
+            data: { channel: RUNNER_CHANNEL, token, ...data },
+            source,
+          }),
+        );
+      });
+    return { frame, token, post, breaker };
+  }
+
+  it("keeps a heartbeating preview running and relays its runtime errors", async () => {
+    const { token, post } = await mount();
+    expect(token).not.toBe("");
+    for (let i = 0; i < 4; i++) {
+      post({ type: "heartbeat" });
+      await act(async () => new Promise((resolve) => setTimeout(resolve, 40)));
+    }
+    expect(screen.getByTitle("Watched preview")).toBeInTheDocument();
+    post({ type: "error", message: "TypeError: x is undefined" });
+    expect(screen.getByRole("alert", { name: "Runtime errors" })).toHaveTextContent(
+      "TypeError: x is undefined",
+    );
+  });
+
+  it("ignores messages from other windows", async () => {
+    const { post } = await mount();
+    post({ type: "error", message: "spoofed" }, window);
+    expect(screen.queryByRole("alert", { name: "Runtime errors" })).not.toBeInTheDocument();
+  });
+
+  it("shuts a hung preview down, offers a re-run, then opens the circuit", async () => {
+    const breaker = new CircuitBreaker(2);
+    const { post } = await mount(breaker);
+    post({ type: "heartbeat" });
+    expect(
+      await screen.findByText("The preview stopped responding and was shut down."),
+    ).toBeInTheDocument();
+    expect(screen.queryByTitle("Watched preview")).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Run again" }));
+    expect(await screen.findByTitle("Watched preview")).toBeInTheDocument();
+    expect(await screen.findByText("Preview disabled")).toBeInTheDocument();
+    expect(breaker.isOpen(`html:${contentHash(HTML)}`)).toBe(true);
+  });
+
+  it("reports a preview that never starts", async () => {
+    await mount();
+    expect(
+      await screen.findByText("The preview did not start in time and was shut down."),
+    ).toBeInTheDocument();
   });
 });

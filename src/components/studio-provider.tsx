@@ -20,6 +20,7 @@ import {
   artifactReducer,
   INITIAL_ARTIFACT_STORE,
   selectArtifact,
+  selectArtifacts,
 } from "@/lib/core/artifact-reducer";
 import {
   type CanvasAction,
@@ -27,6 +28,13 @@ import {
   canvasReducer,
   INITIAL_CANVAS_MODEL,
 } from "@/lib/core/canvas-reducer";
+import {
+  type ArtifactInspection,
+  inspectArtifact,
+  inspectionToProblem,
+} from "@/lib/guardrails/artifact-guardrails";
+import { EMPTY_REPAIR_LEDGER, planRepair, type RepairLedger } from "@/lib/guardrails/critic-loop";
+import { assessInput, type InputAssessment } from "@/lib/guardrails/input-guardrails";
 import {
   MessageMetadataSchema,
   SPLIT_RATIO_BOUNDS,
@@ -42,6 +50,14 @@ export interface StudioContextValue {
   dispatchCanvas: Dispatch<CanvasAction>;
   /** Open (or focus) an artifact's tab and reveal the canvas. */
   activateArtifact: (artifactId: string) => void;
+  /** Security inspection verdicts, keyed by `inspectionKey(id, revision)`. */
+  inspections: Readonly<Record<string, ArtifactInspection>>;
+  /** Screen a message the user wrote and send it if allowed. Returns the verdict. */
+  sendUserMessage: (text: string) => InputAssessment;
+}
+
+export function inspectionKey(artifactId: string, revision: number): string {
+  return `${artifactId}@${revision}`;
 }
 
 /** Exported for composition and tests; app code uses <StudioProvider> and useStudio(). */
@@ -78,6 +94,8 @@ export interface StudioProviderProps {
   children: ReactNode;
   /** Chat transport; POSTs to /api/chat by default. Tests inject an in-memory one. */
   transport?: ChatTransport<StudioUIMessage>;
+  /** Ask the agent to fix rejected artifacts automatically (bounded). Default: on. */
+  autoRepair?: boolean;
 }
 
 /**
@@ -85,7 +103,7 @@ export interface StudioProviderProps {
  * dispatched into the artifact reducer (lifecycle, ordering, integrity) and the canvas
  * reducer (tabs), so chat bubbles and the canvas render from the same state.
  */
-export function StudioProvider({ children, transport }: StudioProviderProps) {
+export function StudioProvider({ children, transport, autoRepair = true }: StudioProviderProps) {
   const [artifacts, dispatchArtifacts] = useReducer(artifactReducer, INITIAL_ARTIFACT_STORE);
   const [canvas, dispatchCanvas] = useReducer(canvasReducer, INITIAL_CANVAS_MODEL);
   const [defaultTransport] = useState(
@@ -121,6 +139,56 @@ export function StudioProvider({ children, transport }: StudioProviderProps) {
     onFinish: () => dispatchArtifacts({ type: "stream-aborted" }),
   });
 
+  // Artifact guardrails: inspect every sealed revision once; unsafe ones fail closed.
+  const [inspections, setInspections] = useState<Record<string, ArtifactInspection>>({});
+  const inspected = useRef(new Set<string>());
+  useEffect(() => {
+    for (const record of selectArtifacts(artifacts)) {
+      const key = inspectionKey(record.id, record.revision);
+      if (record.state !== "complete" || inspected.current.has(key)) continue;
+      inspected.current.add(key);
+      const { id, revision, type, language, content } = record;
+      void inspectArtifact({ type, language, content }).then((inspection) => {
+        setInspections((current) => ({ ...current, [key]: inspection }));
+        if (!inspection.passed) {
+          const problem = inspectionToProblem(inspection);
+          dispatchArtifacts({ type: "artifact-quarantined", artifactId: id, revision, problem });
+        }
+      });
+    }
+  }, [artifacts]);
+
+  // Critic loop: once a response is over, ask the agent to repair one rejected artifact,
+  // within the repair budget. The ledger makes this idempotent per artifact revision.
+  const ledger = useRef<RepairLedger>(EMPTY_REPAIR_LEDGER);
+  const { status, sendMessage } = chat;
+  useEffect(() => {
+    if (!autoRepair || status !== "ready") return;
+    for (const record of selectArtifacts(artifacts)) {
+      const inspection = inspections[inspectionKey(record.id, record.revision)];
+      if (record.error?.code !== "artifact_rejected" || inspection === undefined) continue;
+      const decision = planRepair(ledger.current, record, inspection);
+      ledger.current = decision.ledger;
+      if (decision.action === "repair") {
+        void sendMessage({ text: decision.message });
+        return;
+      }
+    }
+  }, [autoRepair, status, artifacts, inspections, sendMessage]);
+
+  const sendUserMessage = useCallback(
+    (text: string) => {
+      const assessment = assessInput(text);
+      if (assessment.allowed) {
+        // A message the user wrote starts a fresh repair budget.
+        ledger.current = EMPTY_REPAIR_LEDGER;
+        void sendMessage({ text: assessment.sanitizedText });
+      }
+      return assessment;
+    },
+    [sendMessage],
+  );
+
   // Restore the remembered split after mount (storage is unavailable during SSR). The
   // initial default is never written, so it cannot overwrite the stored value.
   useEffect(() => {
@@ -144,8 +212,16 @@ export function StudioProvider({ children, transport }: StudioProviderProps) {
   );
 
   const value = useMemo(
-    () => ({ chat, artifacts, canvas, dispatchCanvas, activateArtifact }),
-    [chat, artifacts, canvas, activateArtifact],
+    () => ({
+      chat,
+      artifacts,
+      canvas,
+      dispatchCanvas,
+      activateArtifact,
+      inspections,
+      sendUserMessage,
+    }),
+    [chat, artifacts, canvas, activateArtifact, inspections, sendUserMessage],
   );
   return <StudioContext value={value}>{children}</StudioContext>;
 }

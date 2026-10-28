@@ -2,15 +2,16 @@ import { describe, expect, it } from "vitest";
 
 import { MOCK_ARTIFACTS } from "@/lib/tools/mock-agent-provider";
 
+import { compileErrorPosition, compileReact } from "./compile";
 import { artifactFileName, artifactMimeType } from "./files";
 import {
   buildMermaidDocument,
   buildPreview,
   buildReactDocument,
-  compileReact,
   inlineJson,
   MERMAID_MODULE_URL,
   REACT_IMPORT_MAP,
+  withHeartbeat,
 } from "./preview";
 
 const NONCE = "test-nonce-0123456789";
@@ -126,10 +127,7 @@ describe("buildPreview", () => {
       },
       "allowlist",
     ],
-    [
-      { type: "react", language: "tsx", content: "export default () => <div" },
-      "Component does not compile",
-    ],
+    [{ type: "react", language: "tsx", content: "export default () => <div" }, "does not compile"],
     [{ type: "svg", language: "svg", content: "<p>no root</p>" }, "<svg> root"],
   ] as const)("reports why %j cannot be previewed", async (input, reason) => {
     const plan = await buildPreview(input);
@@ -154,5 +152,64 @@ describe("artifact files", () => {
   it("maps types to MIME types", () => {
     expect(artifactMimeType("svg")).toBe("image/svg+xml;charset=utf-8");
     expect(artifactMimeType("react")).toBe("text/plain;charset=utf-8");
+  });
+});
+
+describe("buildPreview — guardrails", () => {
+  it("fails closed on artifacts that fail inspection", async () => {
+    const plan = await buildPreview({
+      type: "react",
+      language: "tsx",
+      content:
+        "export default () => { window.parent.postMessage(document.cookie, '*'); return null; };",
+    });
+    expect(plan.kind).toBe("unavailable");
+    if (plan.kind === "unavailable") {
+      expect(plan.reasons).toEqual([
+        expect.stringMatching(/^Line 1:\d+ - Reaching out of the sandbox frame/),
+        expect.stringMatching(/^Line 1:\d+ - Reading or writing document\.cookie/),
+      ]);
+    }
+  });
+
+  it.each(["html", "mermaid", "react"] as const)(
+    "injects the nonce'd watchdog into %s runner documents",
+    async (type) => {
+      const language = type === "react" ? "tsx" : type;
+      const plan = await buildPreview(
+        { type, language, content: MOCK_ARTIFACTS[type].content },
+        NONCE,
+        "watch-token",
+      );
+      if (plan.kind !== "iframe") throw new Error("expected iframe");
+      expect(plan.token).toBe("watch-token");
+      const viewport = plan.document.indexOf('<meta name="viewport"');
+      const watchdog = plan.document.indexOf(`<script nonce="${NONCE}">(() => {`);
+      expect(watchdog).toBeGreaterThan(viewport);
+      expect(plan.document).toContain('"token":"watch-token"');
+      // Before any artifact code runs.
+      expect(watchdog).toBeLessThan(plan.document.indexOf("<script", watchdog + 1));
+    },
+  );
+
+  it("prepends the watchdog when a document has no viewport meta", () => {
+    expect(withHeartbeat("<p>x</p>", NONCE, "t").startsWith(`<script nonce="${NONCE}">`)).toBe(
+      true,
+    );
+  });
+});
+
+describe("compileErrorPosition", () => {
+  it("reads sucrase positions as 1-based line and column", () => {
+    expect(compileErrorPosition(new SyntaxError("Unexpected token (3:4)"))).toEqual({
+      line: 3,
+      column: 5,
+    });
+  });
+
+  it("returns null without a position", () => {
+    expect(compileErrorPosition(new Error("boom"))).toBeNull();
+    expect(compileErrorPosition("plain (x:y)")).toBeNull();
+    expect(compileErrorPosition("thrown string (2:0)")).toEqual({ line: 2, column: 1 });
   });
 });

@@ -390,3 +390,51 @@ describe("selectors", () => {
     expect(entry.state).toBe(state);
   });
 });
+
+describe("artifactReducer — quarantine", () => {
+  const problem = { ...validProblem, code: "artifact_rejected" as const, status: 422 };
+  const quarantine = (revision = 1): ArtifactStoreAction => ({
+    type: "artifact-quarantined",
+    artifactId: "a",
+    revision,
+    problem,
+  });
+
+  it("fails a sealed revision closed and drops its snapshot", () => {
+    const state = run([open("a"), delta("a", 0, "<p>"), close("a"), quarantine()]);
+    expect(get(state, "a")).toMatchObject({
+      state: "error",
+      error: problem,
+      history: [],
+      content: "<p>",
+    });
+    expect(state.diagnostics.at(-1)).toMatchObject({
+      code: "quarantined",
+      message: problem.detail,
+    });
+  });
+
+  it("keeps earlier sealed revisions in the history", () => {
+    const state = run([open("a"), close("a"), open("a", 2), close("a", 2), quarantine(2)]);
+    expect(get(state, "a").history.map((s) => s.revision)).toEqual([1]);
+  });
+
+  it.each([
+    ["a stale revision", [open("a"), close("a"), open("a", 2), close("a", 2), quarantine(1)]],
+    ["a still-streaming revision", [open("a"), quarantine()]],
+    ["an unknown artifact", [quarantine()]],
+  ])("ignores %s", (_case, actions) => {
+    const before = run(actions.slice(0, -1));
+    expect(artifactReducer(before, actions.at(-1) as ArtifactStoreAction)).toBe(before);
+  });
+
+  it("falls back to the title when the problem has no detail", () => {
+    const { detail: _omitted, ...bare } = problem;
+    const state = run([
+      open("a"),
+      close("a"),
+      { ...quarantine(), problem: bare } as ArtifactStoreAction,
+    ]);
+    expect(state.diagnostics.at(-1)?.message).toBe(bare.title);
+  });
+});

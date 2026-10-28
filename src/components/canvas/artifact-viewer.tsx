@@ -72,10 +72,24 @@ export function ArtifactViewer({ record, displayed, viewMode }: ArtifactViewerPr
           className="flex items-start gap-2 border-b bg-red-500/5 px-4 py-2 text-sm"
         >
           <TriangleAlert aria-hidden className="mt-0.5 size-4 shrink-0 text-red-600" />
-          <p>
-            <span className="font-medium">{record.error?.title}.</span>{" "}
-            <span className="text-muted-foreground">{record.error?.detail}</span>
-          </p>
+          <div className="min-w-0">
+            <p>
+              <span className="font-medium">{record.error?.title}.</span>{" "}
+              <span className="text-muted-foreground">{record.error?.detail}</span>
+            </p>
+            {(record.error?.errors?.length ?? 0) > 0 && (
+              <ul
+                aria-label="Defects"
+                className="mt-1 space-y-0.5 font-mono text-xs text-muted-foreground"
+              >
+                {record.error?.errors?.slice(0, 5).map((issue) => (
+                  <li key={`${issue.path}:${issue.message}`}>
+                    {issue.path}: {issue.message}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         </div>
       )}
       {displayed.streaming && viewMode === "preview" && (

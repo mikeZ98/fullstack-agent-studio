@@ -63,7 +63,8 @@ export type ArtifactDiagnosticCode =
   | "content-truncated"
   | "missing-deltas"
   | "integrity-mismatch"
-  | "interrupted";
+  | "interrupted"
+  | "quarantined";
 
 /** Why an event was rejected or an artifact failed; bounded to LIMITS.diagnostics. */
 export interface ArtifactDiagnostic {
@@ -88,7 +89,18 @@ export interface StreamAbortedAction {
   messageId?: Identifier;
 }
 
-export type ArtifactStoreAction = StreamEvent | StreamAbortedAction;
+/**
+ * Synthetic action: a sealed revision failed security inspection. It must never run, so
+ * it moves to `error` and its snapshot is dropped from the history.
+ */
+export interface ArtifactQuarantinedAction {
+  type: "artifact-quarantined";
+  artifactId: Identifier;
+  revision: number;
+  problem: ProblemDetails;
+}
+
+export type ArtifactStoreAction = StreamEvent | StreamAbortedAction | ArtifactQuarantinedAction;
 
 export const INITIAL_ARTIFACT_STORE: ArtifactStoreState = {
   artifacts: {},
@@ -329,6 +341,21 @@ function onError(state: ArtifactStoreState, event: ErrorEvent): ArtifactStoreSta
   return interrupt(state, event.messageId, () => event.error);
 }
 
+function onQuarantine(
+  state: ArtifactStoreState,
+  action: ArtifactQuarantinedAction,
+): ArtifactStoreState {
+  const record = selectArtifact(state, action.artifactId);
+  // Only the sealed revision that was inspected; a newer revision supersedes the verdict.
+  if (record === undefined || record.revision !== action.revision || record.state !== "complete") {
+    return state;
+  }
+  const history = record.history.filter((snapshot) => snapshot.revision !== action.revision);
+  const quarantined: ArtifactRecord = { ...record, state: "error", error: action.problem, history };
+  const message = action.problem.detail ?? action.problem.title;
+  return diagnose(put(state, quarantined), "quarantined", record.id, record.revision, message);
+}
+
 function interruptedProblem(detail: string) {
   return () => createProblem("stream_interrupted", { detail });
 }
@@ -362,6 +389,8 @@ export function artifactReducer(
         action.messageId,
         interruptedProblem("The stream ended before the artifact was closed"),
       );
+    case "artifact-quarantined":
+      return onQuarantine(state, action);
     default:
       return state;
   }

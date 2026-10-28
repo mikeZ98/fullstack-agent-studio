@@ -1,5 +1,5 @@
 import { createUIMessageStreamResponse } from "ai";
-
+import { guardChatRequest } from "@/lib/guardrails/input-guardrails";
 import {
   ChatRequestSchema,
   createProblem,
@@ -98,9 +98,13 @@ export function createChatHandler(options: ChatHandlerOptions) {
       );
     }
 
+    // Input guardrails: sanitise every turn, refuse injection attempts in any user turn.
+    const guarded = guardChatRequest(parsed.data);
+    if (!guarded.ok) return problemResponse(guarded.problem);
+
     let upstream: ReadableStream<Uint8Array>;
     try {
-      upstream = await client.stream(toAgentRequest(parsed.data), { signal: request.signal });
+      upstream = await client.stream(toAgentRequest(guarded.request), { signal: request.signal });
     } catch (error) {
       if (error instanceof AgentClientError) {
         const retryAfterMs = error.options.retryAfterMs;

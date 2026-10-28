@@ -15,6 +15,8 @@ export const AppErrorCodeSchema = z.enum([
   "rate_limited",
   "unauthorized",
   "validation_failed",
+  "input_rejected",
+  "artifact_rejected",
   "artifact_render_failed",
   "internal",
 ]);
@@ -81,6 +83,12 @@ export const PROBLEM_DEFAULTS: Readonly<
   rate_limited: { status: 429, title: "Too many requests", retryable: true },
   unauthorized: { status: 401, title: "Unauthorized", retryable: false },
   validation_failed: { status: 422, title: "Validation failed", retryable: false },
+  input_rejected: { status: 422, title: "Message rejected by input guardrails", retryable: false },
+  artifact_rejected: {
+    status: 422,
+    title: "Artifact rejected by security inspection",
+    retryable: false,
+  },
   artifact_render_failed: { status: 422, title: "Artifact failed to render", retryable: false },
   internal: { status: 500, title: "Internal error", retryable: false },
 };

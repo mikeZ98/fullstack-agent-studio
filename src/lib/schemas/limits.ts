@@ -49,4 +49,8 @@ export const LIMITS = {
   chatHistoryChars: 400_000,
   /** Upstream error body read to build a problem, in bytes. */
   upstreamErrorBytes: 65_536,
+  /** Defects reported per inspected artifact. */
+  artifactDefects: 100,
+  /** Automatic critic repair requests in a row before the loop gives up. */
+  repairAttempts: 2,
 } as const;

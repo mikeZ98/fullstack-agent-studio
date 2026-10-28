@@ -12,7 +12,8 @@ import { Tooltip } from "../ui/tooltip";
 export const MAX_INPUT_HEIGHT = 200;
 
 export interface ChatInputProps {
-  onSubmit: (text: string) => void;
+  /** Return `false` to refuse the message and keep it in the field for editing. */
+  onSubmit: (text: string) => boolean | undefined;
   onStop: () => void;
   /** A response is being requested or streamed: submitting is blocked, Stop is offered. */
   busy: boolean;
@@ -43,8 +44,7 @@ export function ChatInput({
 
   function submit() {
     if (!canSubmit) return;
-    onSubmit(text.trim());
-    setText("");
+    if (onSubmit(text.trim()) !== false) setText("");
   }
 
   function onKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {

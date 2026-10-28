@@ -5,7 +5,11 @@ import {
   preprocessArtifact,
   RUNNER_SCRIPT_HOSTS,
 } from "@/lib/core/sandbox-preprocessor";
+import { inspectArtifact, isBlocking } from "@/lib/guardrails/artifact-guardrails";
+import { heartbeatScript } from "@/lib/guardrails/sandbox-guard";
 import type { ArtifactLanguage, ArtifactType } from "@/lib/schemas";
+
+import { compileReact } from "./compile";
 
 /**
  * Turns artifact content into what the canvas shows in Preview mode. Everything that
@@ -14,7 +18,8 @@ import type { ArtifactLanguage, ArtifactType } from "@/lib/schemas";
  */
 
 export type PreviewPlan =
-  | { kind: "iframe"; document: string }
+  /** `token` identifies this frame's heartbeat messages (see sandbox-guard). */
+  | { kind: "iframe"; document: string; token: string }
   | { kind: "image"; src: string }
   | { kind: "markdown"; source: string }
   | { kind: "unavailable"; reasons: string[] };
@@ -116,40 +121,57 @@ export function buildReactDocument(compiled: string, nonce: string): string {
   ]);
 }
 
-/** TSX/JSX → ES module JavaScript (types stripped, automatic JSX runtime, imports kept). */
-export async function compileReact(source: string, language: ArtifactLanguage): Promise<string> {
-  const { transform } = await import("sucrase");
-  const transforms: ("typescript" | "jsx")[] = language === "tsx" ? ["typescript", "jsx"] : ["jsx"];
-  return transform(source, { transforms, jsxRuntime: "automatic", production: true }).code;
-}
-
 function svgDataUri(markup: string): string {
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(markup)}`;
+}
+
+const VIEWPORT_META = '<meta name="viewport" content="width=device-width, initial-scale=1">';
+
+/**
+ * Put the watchdog bootstrap right after the document head metadata, before any artifact
+ * code, so it reports errors from everything that follows.
+ */
+export function withHeartbeat(document: string, nonce: string, token: string): string {
+  const script = `<script nonce="${nonce}">${heartbeatScript(token)}</script>`;
+  const at = document.indexOf(VIEWPORT_META);
+  if (at === -1) return `${script}\n${document}`;
+  const end = at + VIEWPORT_META.length;
+  return `${document.slice(0, end)}\n${script}${document.slice(end)}`;
 }
 
 /** Decide how to preview an artifact. Never throws: failures become `unavailable`. */
 export async function buildPreview(
   input: PreviewInput,
   nonce: string = generateNonce(),
+  token: string = generateNonce(),
 ): Promise<PreviewPlan> {
+  // Fail closed: nothing that failed inspection reaches the runner, whatever its state.
+  const inspection = await inspectArtifact(input);
+  if (!inspection.passed) {
+    const reasons = inspection.defects
+      .filter(isBlocking)
+      .map((defect) => `Line ${defect.line}:${defect.column} - ${defect.message}`);
+    return { kind: "unavailable", reasons };
+  }
+
   const prepared = preprocessArtifact(input, { nonce });
   if (prepared.blockers.length > 0) return { kind: "unavailable", reasons: prepared.blockers };
+  const iframe = (document: string): PreviewPlan => ({
+    kind: "iframe",
+    document: withHeartbeat(document, nonce, token),
+    token,
+  });
 
   switch (prepared.kind) {
     case "html":
-      return { kind: "iframe", document: prepared.document };
+      return iframe(prepared.document);
     case "svg":
       return { kind: "image", src: svgDataUri(prepared.markup) };
     case "mermaid":
-      return { kind: "iframe", document: buildMermaidDocument(prepared.source, nonce) };
+      return iframe(buildMermaidDocument(prepared.source, nonce));
     case "react":
-      try {
-        const compiled = await compileReact(prepared.source, input.language);
-        return { kind: "iframe", document: buildReactDocument(compiled, nonce) };
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        return { kind: "unavailable", reasons: [`Component does not compile: ${message}`] };
-      }
+      // Inspection already compiled this source successfully.
+      return iframe(buildReactDocument(await compileReact(prepared.source, input.language), nonce));
     case "markdown":
       return { kind: "markdown", source: prepared.source };
     case "code":

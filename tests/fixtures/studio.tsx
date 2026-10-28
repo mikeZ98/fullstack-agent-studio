@@ -13,6 +13,8 @@ import {
   INITIAL_ARTIFACT_STORE,
 } from "@/lib/core/artifact-reducer";
 import { type CanvasAction, canvasReducer, INITIAL_CANVAS_MODEL } from "@/lib/core/canvas-reducer";
+import type { ArtifactInspection } from "@/lib/guardrails/artifact-guardrails";
+import { assessInput, guardChatRequest } from "@/lib/guardrails/input-guardrails";
 import { ChatRequestSchema, type StudioUIMessage, toAgentRequest } from "@/lib/schemas";
 import { createAgentClient } from "@/lib/tools/agent-client";
 import { createMockAgentServer, type MockAgentOptions } from "@/lib/tools/mock-agent-provider";
@@ -43,9 +45,12 @@ export function mockTransport(options: MockAgentOptions = {}): MockTransport {
         trigger,
         ...(messageId === undefined ? {} : { messageId }),
       });
+      // Same gate as /api/chat.
+      const guarded = guardChatRequest(request);
+      if (!guarded.ok) throw new Error(JSON.stringify(guarded.problem));
       try {
         const upstream = await client.stream(
-          toAgentRequest(request),
+          toAgentRequest(guarded.request),
           abortSignal === undefined ? {} : { signal: abortSignal },
         );
         return bridgeAgentStream(
@@ -90,13 +95,24 @@ export function studioValue({
   artifactActions = [],
   canvasActions = [],
   chat,
-}: StudioStateInit = {}): StudioContextValue {
+  inspections = {},
+}: StudioStateInit & {
+  inspections?: Record<string, ArtifactInspection>;
+} = {}): StudioContextValue {
+  const fake = fakeChat(chat);
   return {
-    chat: fakeChat(chat),
+    chat: fake,
     artifacts: artifactActions.reduce(artifactReducer, INITIAL_ARTIFACT_STORE),
     canvas: canvasActions.reduce(canvasReducer, INITIAL_CANVAS_MODEL),
     dispatchCanvas: vi.fn(),
     activateArtifact: vi.fn(),
+    inspections,
+    // Same contract as the provider: screen, then send the sanitised text if allowed.
+    sendUserMessage: vi.fn((text: string) => {
+      const assessment = assessInput(text);
+      if (assessment.allowed) void fake.sendMessage({ text: assessment.sanitizedText });
+      return assessment;
+    }),
   };
 }
 

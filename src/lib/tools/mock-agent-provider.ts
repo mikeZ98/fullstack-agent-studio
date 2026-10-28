@@ -145,6 +145,8 @@ export interface MockFaults {
 export interface MockAgentOptions {
   /** Artifacts to emit; inferred from the last user message when omitted. */
   artifactTypes?: readonly ArtifactType[];
+  /** Replace the built-in sample for a type (e.g. with deliberately unsafe code). */
+  artifacts?: Partial<Record<ArtifactType, MockArtifact>>;
   /** Tool call/result round trips before answering. */
   toolSteps?: number;
   /** Characters per artifact delta. */
@@ -203,7 +205,8 @@ export function mockAgentEvents(
   }
 
   types.forEach((artifactType, index) => {
-    const { title, language, content } = MOCK_ARTIFACTS[artifactType];
+    const { title, language, content } =
+      options.artifacts?.[artifactType] ?? MOCK_ARTIFACTS[artifactType];
     const artifactId = `art_${seed}_${index}`;
     say(`Here is the ${artifactType} artifact. `);
     events.push({
