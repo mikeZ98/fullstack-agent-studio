@@ -58,6 +58,8 @@ export const ArtifactDeltaDataSchema = z.strictObject({
   messageId: IdentifierSchema,
   artifactId: IdentifierSchema,
   revision: RevisionSchema,
+  /** Zero-based position of this delta within the revision; detects reordering and loss. */
+  seq: z.int().min(0),
   delta: DeltaSchema,
 });
 export type ArtifactDeltaData = z.infer<typeof ArtifactDeltaDataSchema>;

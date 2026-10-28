@@ -88,6 +88,9 @@ describe("StreamEventSchema — per-event constraints", () => {
       { revision: 0 },
       ["revision"],
     ],
+    ["artifact-delta with a negative seq", validEvents["artifact-delta"], { seq: -1 }, ["seq"]],
+    ["artifact-delta with a fractional seq", validEvents["artifact-delta"], { seq: 0.5 }, ["seq"]],
+    ["artifact-delta without seq", validEvents["artifact-delta"], { seq: undefined }, ["seq"]],
     [
       "artifact-open with an unknown artifactType",
       validEvents["artifact-open"],

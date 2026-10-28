@@ -59,6 +59,7 @@ export const validEvents = {
     messageId: "msg_1",
     artifactId: "art_1",
     revision: 1,
+    seq: 0,
     delta: "export default function App() {",
   },
   "artifact-close": {

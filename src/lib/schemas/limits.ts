@@ -27,4 +27,14 @@ export const LIMITS = {
   uriLength: 2_048,
   issuePathLength: 256,
   issueMessageLength: 500,
+  /** Out-of-order artifact deltas buffered while waiting for a gap to fill. */
+  reorderWindow: 256,
+  /** Sealed revisions kept per artifact for time travel and diffing. */
+  artifactHistory: 20,
+  /** Rejected-event diagnostics kept by the artifact store. */
+  diagnostics: 50,
+  /** Malformed frames in a row before the stream is abandoned. */
+  consecutiveParseErrors: 10,
+  /** Findings reported per sanitized artifact. */
+  sanitizerFindings: 100,
 } as const;
