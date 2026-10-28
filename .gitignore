@@ -1,0 +1,42 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.*
+.yarn/
+
+# Next.js build output
+.next/
+out/
+build/
+next-env.d.ts
+*.tsbuildinfo
+
+# Project-local caches, stores and temp (see .envrc)
+.cache/
+
+# Test & coverage reports
+coverage/
+.vitest/
+junit.xml
+
+# Environment: only the documented template is tracked
+.env
+.env.*
+!.env.example
+.envrc.local
+
+# Deployment
+.vercel/
+
+# Logs & debug
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# OS / editor
+.DS_Store
+*.pem
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json

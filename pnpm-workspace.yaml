@@ -1,0 +1,6 @@
+# Single-package repository: this file only carries pnpm settings.
+autoInstallPeers: false
+strictPeerDependencies: true
+resolutionMode: highest
+# pnpm 10 blocks dependency lifecycle scripts by default; allow only native binaries we need.
+onlyBuiltDependencies: []
