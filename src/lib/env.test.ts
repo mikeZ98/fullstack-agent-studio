@@ -21,6 +21,11 @@ describe("createAppEnv", () => {
     expect(createAppEnv(valid)).toMatchObject(valid);
   });
 
+  it("defaults AGENT_PROVIDER to upstream and accepts mock", () => {
+    expect(createAppEnv(valid).AGENT_PROVIDER).toBe("upstream");
+    expect(createAppEnv({ ...valid, AGENT_PROVIDER: "mock" }).AGENT_PROVIDER).toBe("mock");
+  });
+
   it("defaults NODE_ENV to development when unset", () => {
     const { NODE_ENV: _omitted, ...rest } = valid;
     expect(createAppEnv(rest).NODE_ENV).toBe("development");
@@ -34,6 +39,7 @@ describe("createAppEnv", () => {
     ["NEXT_PUBLIC_API_URL is a javascript: URL", { NEXT_PUBLIC_API_URL: "javascript:alert(1)" }],
     ["NEXT_PUBLIC_API_URL is an empty string", { NEXT_PUBLIC_API_URL: "" }],
     ["NODE_ENV is not a known mode", { NODE_ENV: "staging" }],
+    ["AGENT_PROVIDER is not a known provider", { AGENT_PROVIDER: "openai" }],
   ])("rejects the environment when %s", (_case, override: RuntimeEnv) => {
     expect(() => createAppEnv({ ...valid, ...override })).toThrow(/invalid environment variables/i);
     expect(console.error).toHaveBeenCalledOnce();

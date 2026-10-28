@@ -4,6 +4,11 @@ import { LIMITS } from "./limits";
 
 /** Typed application error codes carried as an RFC 9457 extension member. */
 export const AppErrorCodeSchema = z.enum([
+  "bad_request",
+  "payload_too_large",
+  "unsupported_media_type",
+  "upstream_error",
+  "timeout",
   "invalid_frame",
   "stream_interrupted",
   "upstream_unavailable",
@@ -65,6 +70,11 @@ export type ProblemDetails = z.infer<typeof ProblemDetailsSchema>;
 export const PROBLEM_DEFAULTS: Readonly<
   Record<AppErrorCode, Readonly<{ status: number; title: string; retryable: boolean }>>
 > = {
+  bad_request: { status: 400, title: "Malformed request", retryable: false },
+  payload_too_large: { status: 413, title: "Request body too large", retryable: false },
+  unsupported_media_type: { status: 415, title: "Unsupported media type", retryable: false },
+  upstream_error: { status: 502, title: "Agent backend error", retryable: false },
+  timeout: { status: 504, title: "Agent backend timed out", retryable: true },
   invalid_frame: { status: 502, title: "Malformed stream frame", retryable: false },
   stream_interrupted: { status: 502, title: "Stream interrupted", retryable: true },
   upstream_unavailable: { status: 503, title: "Agent backend unavailable", retryable: true },

@@ -1,5 +1,6 @@
 export * from "./artifact";
 export * from "./canvas";
+export * from "./chat";
 export * from "./json";
 export * from "./limits";
 export * from "./parse";

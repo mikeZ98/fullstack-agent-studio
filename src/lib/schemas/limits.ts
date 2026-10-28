@@ -37,4 +37,16 @@ export const LIMITS = {
   consecutiveParseErrors: 10,
   /** Findings reported per sanitized artifact. */
   sanitizerFindings: 100,
+  /** Chat API request body, in bytes. */
+  requestBodyBytes: 1_048_576,
+  /** Messages in one chat request. */
+  chatMessages: 200,
+  /** Parts in one chat message. */
+  messageParts: 500,
+  /** Text of one message part. */
+  messageTextChars: 100_000,
+  /** All text across the conversation history. */
+  chatHistoryChars: 400_000,
+  /** Upstream error body read to build a problem, in bytes. */
+  upstreamErrorBytes: 65_536,
 } as const;

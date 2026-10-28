@@ -6,6 +6,8 @@ export const serverSchema = {
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   /** Upstream agent backend endpoint that streams Server-Sent Events. */
   BACKEND_SSE_URL: z.url({ protocol: /^https?$/ }),
+  /** `mock` serves the deterministic in-memory agent instead of calling BACKEND_SSE_URL. */
+  AGENT_PROVIDER: z.enum(["upstream", "mock"]).default("upstream"),
 } as const;
 
 /** Variables inlined into the client bundle; must carry the NEXT_PUBLIC_ prefix. */
@@ -37,6 +39,7 @@ export function createAppEnv(runtimeEnv: RuntimeEnv, options: CreateAppEnvOption
     runtimeEnv: {
       NODE_ENV: runtimeEnv.NODE_ENV,
       BACKEND_SSE_URL: runtimeEnv.BACKEND_SSE_URL,
+      AGENT_PROVIDER: runtimeEnv.AGENT_PROVIDER,
       NEXT_PUBLIC_API_URL: runtimeEnv.NEXT_PUBLIC_API_URL,
     },
     skipValidation: options.skipValidation ?? false,
@@ -49,6 +52,7 @@ export const env = createAppEnv(
   {
     NODE_ENV: process.env.NODE_ENV,
     BACKEND_SSE_URL: process.env.BACKEND_SSE_URL,
+    AGENT_PROVIDER: process.env.AGENT_PROVIDER,
     NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL,
   },
   { skipValidation: Boolean(process.env.SKIP_ENV_VALIDATION) },
