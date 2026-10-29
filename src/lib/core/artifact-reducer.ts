@@ -48,6 +48,8 @@ export interface ArtifactRecord {
   /** Content was cut at LIMITS.artifactContentChars. */
   readonly truncated: boolean;
   readonly error?: ProblemDetails;
+  /** The sealed revision failed security inspection; it may never be reopened. */
+  readonly quarantined?: true;
   /** Sealed revisions, oldest first, at most LIMITS.artifactHistory. */
   readonly history: readonly ArtifactSnapshot[];
 }
@@ -195,14 +197,18 @@ function onOpen(state: ArtifactStoreState, event: ArtifactOpenEvent): ArtifactSt
   const existing = selectArtifact(state, id);
   const expected = existing === undefined ? 1 : existing.revision + 1;
 
-  if (existing?.revision === revision) {
+  // A revision that broke off mid-stream may be sent again from the start (a retried or
+  // regenerated response). Anything else, including a quarantined revision, is a replay.
+  const restart =
+    existing?.revision === revision && existing.state === "error" && existing.quarantined !== true;
+  if (existing?.revision === revision && !restart) {
     return diagnose(state, "duplicate-open", id, revision, `Revision ${revision} is already open`);
   }
   if (existing?.state === "streaming") {
     const message = `Revision ${existing.revision} is still streaming`;
     return diagnose(state, "revision-in-progress", id, revision, message);
   }
-  if (revision !== expected) {
+  if (revision !== expected && !restart) {
     const message = `Expected revision ${expected}, got ${revision}`;
     return diagnose(state, "unexpected-revision", id, revision, message);
   }
@@ -351,7 +357,13 @@ function onQuarantine(
     return state;
   }
   const history = record.history.filter((snapshot) => snapshot.revision !== action.revision);
-  const quarantined: ArtifactRecord = { ...record, state: "error", error: action.problem, history };
+  const quarantined: ArtifactRecord = {
+    ...record,
+    state: "error",
+    error: action.problem,
+    quarantined: true,
+    history,
+  };
   const message = action.problem.detail ?? action.problem.title;
   return diagnose(put(state, quarantined), "quarantined", record.id, record.revision, message);
 }

@@ -40,6 +40,10 @@ describe("clean artifacts", () => {
     ],
     ["geometry named top", "const y = rect.top.toFixed(2); const s = { top: 0 };"],
     ["a router location", "const location = useLocation(); console.log(location.pathname);"],
+    [
+      "location parameters and comparisons",
+      'function go(location = "/") {}\nconst f = (a, location) => location === a;\nconst g = location => location;',
+    ],
     ["methods named fetch", "await api.fetch(); refetch(); store.parent.name;"],
     [
       "identifiers containing Function",
@@ -90,6 +94,7 @@ describe("React / TypeScript — sandbox escapes and exfiltration", () => {
     ["XMLHttpRequest", "const x = new XMLHttpRequest();", "network-sink:high"],
     ["location assignment", 'window.location = "https://evil.example";', "navigation-sink:high"],
     ["location.href", 'location.href = "https://evil.example";', "navigation-sink:high"],
+    ["bare location assignment", 'location = "https://evil.example";', "navigation-sink:high"],
     ["window.open", 'window.open("https://evil.example");', "navigation-sink:high"],
   ])("flags %s", (_case, code, expected) => {
     const result = react(code);

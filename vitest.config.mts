@@ -37,6 +37,17 @@ export default defineConfig({
         functions: 90,
         lines: 90,
         statements: 90,
+        // The same floor per module, so a well-covered module cannot mask a weak one.
+        ...Object.fromEntries(
+          [
+            "src/lib/schemas/**",
+            "src/lib/core/**",
+            "src/lib/tools/**",
+            "src/lib/guardrails/**",
+            "src/lib/runner/**",
+            "src/components/**",
+          ].map((glob) => [glob, { branches: 90, functions: 90, lines: 90, statements: 90 }]),
+        ),
       },
     },
   },

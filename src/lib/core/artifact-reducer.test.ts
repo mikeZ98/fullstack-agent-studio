@@ -229,6 +229,31 @@ describe("artifactReducer — revisions and history", () => {
     expect(codes(state)).toEqual(["duplicate-open"]);
   });
 
+  it("restarts a revision that broke off mid-stream when it is sent again", () => {
+    const broken = run([open("a"), close("a"), open("a", 2), delta("a", 0, "half", 2)]);
+    const interrupted = artifactReducer(broken, { type: "stream-aborted" });
+    expect(get(interrupted, "a").state).toBe("error");
+
+    const retried = run([open("a", 2), delta("a", 0, "whole", 2), close("a", 2)], interrupted);
+    expect(get(retried, "a")).toMatchObject({ revision: 2, state: "complete", content: "whole" });
+    expect(get(retried, "a").error).toBeUndefined();
+    expect(get(retried, "a").history.map((s) => s.revision)).toEqual([1, 2]);
+    expect(codes(retried)).toEqual(["interrupted"]);
+  });
+
+  it("never restarts a quarantined revision", () => {
+    const sealed = run([open("a"), delta("a", 0, "bad"), close("a")]);
+    const quarantined = artifactReducer(sealed, {
+      type: "artifact-quarantined",
+      artifactId: "a",
+      revision: 1,
+      problem: validProblem,
+    });
+    const replayed = run([open("a"), delta("a", 0, "bad")], quarantined);
+    expect(get(replayed, "a")).toMatchObject({ state: "error", content: "bad", quarantined: true });
+    expect(codes(replayed)).toEqual(["quarantined", "duplicate-open", "not-streaming"]);
+  });
+
   it("rejects the next revision while the current one is streaming", () => {
     const state = run([open("a"), open("a", 2)]);
     expect(get(state, "a").revision).toBe(1);

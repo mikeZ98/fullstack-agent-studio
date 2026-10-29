@@ -179,7 +179,7 @@ const CODE_RULES: readonly CodeRule[] = [
     rule: "navigation-sink",
     severity: "high",
     pattern:
-      /\b(?:window|document|self)\s*\.\s*location\s*(?:=[^=]|\.\s*(?:href\s*=[^=]|assign|replace))|(?<![.\w$])location\s*\.\s*(?:href\s*=[^=]|assign\s*\(|replace\s*\()|\bwindow\s*\.\s*open\s*\(/g,
+      /\b(?:window|document|self)\s*\.\s*location\s*(?:=[^=]|\.\s*(?:href\s*=[^=]|assign|replace))|(?<![.\w$])location\s*(?:\.\s*(?:href\s*=[^=]|assign\s*\(|replace\s*\()|(?<!(?:\b(?:const|let|var)\s+|[(,]\s*)location\s*)=[^=>])|\bwindow\s*\.\s*open\s*\(/g,
     message: "Navigating away from or opening windows from the sandbox is forbidden.",
   },
 ];
