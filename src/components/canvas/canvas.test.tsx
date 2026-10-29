@@ -436,15 +436,17 @@ describe("CanvasPanel", () => {
 describe("ArtifactPreview — sandbox watchdog", () => {
   const HTML = "<p>Hello</p>";
 
-  async function mount(breaker = new CircuitBreaker(2)) {
+  // Real timers: each test picks timeouts under which only the trip it expects can happen,
+  // however slowly the machine runs.
+  async function mount(breaker = new CircuitBreaker(2), { boot = 80, stall = 80 } = {}) {
     render(
       <ArtifactPreview
         type="html"
         language="html"
         content={HTML}
         title="Watched"
-        bootTimeoutMs={80}
-        stallTimeoutMs={80}
+        bootTimeoutMs={boot}
+        stallTimeoutMs={stall}
         breaker={breaker}
       />,
     );
@@ -466,7 +468,7 @@ describe("ArtifactPreview — sandbox watchdog", () => {
   }
 
   it("keeps a heartbeating preview running and relays its runtime errors", async () => {
-    const { token, post } = await mount();
+    const { token, post } = await mount(undefined, { boot: 60_000, stall: 60_000 });
     expect(token).not.toBe("");
     for (let i = 0; i < 4; i++) {
       post({ type: "heartbeat" });
@@ -487,7 +489,8 @@ describe("ArtifactPreview — sandbox watchdog", () => {
 
   it("shuts a hung preview down, offers a re-run, then opens the circuit", async () => {
     const breaker = new CircuitBreaker(2);
-    const { post } = await mount(breaker);
+    // A long boot timeout: the first trip can only be the stall after the heartbeat.
+    const { post } = await mount(breaker, { boot: 1_000, stall: 80 });
     post({ type: "heartbeat" });
     expect(
       await screen.findByText("The preview stopped responding and was shut down."),
@@ -496,7 +499,8 @@ describe("ArtifactPreview — sandbox watchdog", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "Run again" }));
     expect(await screen.findByTitle("Watched preview")).toBeInTheDocument();
-    expect(await screen.findByText("Preview disabled")).toBeInTheDocument();
+    // The re-run never heartbeats, so it trips at the boot timeout and opens the circuit.
+    expect(await screen.findByText("Preview disabled", {}, { timeout: 5_000 })).toBeInTheDocument();
     expect(breaker.isOpen(`html:${contentHash(HTML)}`)).toBe(true);
   });
 

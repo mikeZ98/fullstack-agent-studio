@@ -27,6 +27,7 @@ tests
 **/*.test.ts
 **/*.test.tsx
 vitest.config.mts
+vitest.bench.mts
 coverage
 .vitest
 junit.xml
@@ -39,6 +40,10 @@ scripts
 # CI and toolchain pins (the image pins its own Node.js)
 .github
 .nvmrc
+
+# Documentation (not needed by the server)
+docs
+README.md
 
 # Container and editor files
 Dockerfile

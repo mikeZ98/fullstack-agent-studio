@@ -47,7 +47,8 @@
     "tests/**/*.ts",
     "tests/**/*.tsx",
     "*.config.ts",
-    "*.config.mts"
+    "*.config.mts",
+    "vitest.bench.mts"
   ],
   "exclude": ["node_modules", ".next", ".cache", "coverage", "out"]
 }

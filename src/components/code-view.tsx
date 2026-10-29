@@ -46,7 +46,9 @@ export function CodeView({ code, language, className, lineNumbers = true }: Code
           style={{ ...style, backgroundColor: "transparent" }}
           data-highlighted="true"
         >
-          <code>
+          {/* An explicit table: rows inside an inline <code> would get anonymous table boxes,
+              which browsers lay out unpredictably once a line is empty. */}
+          <code className="table">
             {tokens.map((line, index) => {
               const { key: _lineKey, ...lineProps } = getLineProps({ line });
               return (
@@ -63,8 +65,15 @@ export function CodeView({ code, language, className, lineNumbers = true }: Code
                   <span className="table-cell whitespace-pre">
                     {line.map((token, tokenIndex) => {
                       const { key: _tokenKey, ...tokenProps } = getTokenProps({ token });
-                      // biome-ignore lint/suspicious/noArrayIndexKey: tokens are positional within a line.
-                      return <span key={tokenIndex} {...tokenProps} />;
+                      // Prism represents an empty line as a "\n" token; under white-space: pre
+                      // that newline would add a second line box. A space keeps the row height.
+                      const children = token.empty === true ? " " : tokenProps.children;
+                      return (
+                        // biome-ignore lint/suspicious/noArrayIndexKey: tokens are positional within a line.
+                        <span key={tokenIndex} {...tokenProps}>
+                          {children}
+                        </span>
+                      );
                     })}
                   </span>
                 </span>

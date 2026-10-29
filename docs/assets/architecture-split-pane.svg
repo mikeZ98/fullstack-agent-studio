@@ -1,0 +1,137 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720" width="1280" height="720" role="img" aria-labelledby="title desc">
+  <title id="title">Fullstack Agent Studio architecture</title>
+  <desc id="desc">The browser posts a chat request to the /api/chat route handler, which validates and screens it and calls the upstream agent through a retrying client. The agent's SSE stream is parsed by the stream dispatcher and bridged to the AI SDK UI message stream, which useChat feeds into pure reducers. The canvas renders sealed, inspected artifacts in a sandboxed iframe guarded by a heartbeat watchdog; rejected artifacts trigger a bounded critic repair loop.</desc>
+  <style>
+    .frame { fill: #ffffff; stroke: #d4d4d8; }
+    .lane { stroke-width: 1; }
+    .browser { fill: #eff6ff; stroke: #bfdbfe; }
+    .server { fill: #f0fdf4; stroke: #bbf7d0; }
+    .upstream { fill: #faf5ff; stroke: #e9d5ff; }
+    .lane-label { font: 600 12px ui-sans-serif, system-ui, -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; letter-spacing: 0.08em; fill: #52525b; }
+    .box { fill: #ffffff; stroke: #a1a1aa; stroke-width: 1.25; }
+    .guard { fill: #fff7ed; stroke: #fb923c; stroke-width: 1.25; }
+    .name { font: 600 15px ui-sans-serif, system-ui, -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; fill: #18181b; }
+    .mono { font: 500 14px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; fill: #18181b; }
+    .detail { font: 12px ui-sans-serif, system-ui, -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; fill: #52525b; }
+    .title { font: 700 20px ui-sans-serif, system-ui, -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; fill: #18181b; }
+    .edge { fill: none; stroke: #52525b; stroke-width: 1.6; }
+    .edge-guard { fill: none; stroke: #ea580c; stroke-width: 1.6; stroke-dasharray: 6 4; }
+    .label { font: 500 11.5px ui-sans-serif, system-ui, -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; fill: #3f3f46; paint-order: stroke; stroke: #ffffff; stroke-width: 4px; stroke-linejoin: round; }
+  </style>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#52525b"/>
+    </marker>
+    <marker id="arrow-guard" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#ea580c"/>
+    </marker>
+  </defs>
+
+  <rect class="frame" x="0.5" y="0.5" width="1279" height="719" rx="14"/>
+  <text class="title" x="40" y="44">Fullstack Agent Studio — request and stream pipeline</text>
+
+  <!-- Lanes -->
+  <rect class="lane browser" x="20" y="66" width="1240" height="270" rx="10"/>
+  <text class="lane-label" x="40" y="88">BROWSER · src/components · src/lib/core · src/lib/runner</text>
+  <rect class="lane server" x="20" y="364" width="1240" height="186" rx="10"/>
+  <text class="lane-label" x="160" y="386">SERVER · Next.js route handler · src/lib/tools</text>
+  <rect class="lane upstream" x="20" y="578" width="1240" height="122" rx="10"/>
+  <text class="lane-label" x="40" y="600">UPSTREAM</text>
+
+  <!-- Browser, row 1 -->
+  <rect class="box" x="40" y="104" width="200" height="82" rx="8"/>
+  <text class="name" x="56" y="132">Chat panel + <tspan class="mono">useChat</tspan></text>
+  <text class="detail" x="56" y="154">sendMessage · streaming UI</text>
+  <text class="detail" x="56" y="172">input guardrails pre-send</text>
+
+  <rect class="box" x="300" y="104" width="200" height="82" rx="8"/>
+  <text class="mono" x="316" y="132">StudioProvider</text>
+  <text class="detail" x="316" y="154">onData → pure reducers</text>
+  <text class="detail" x="316" y="172">inspection · critic effects</text>
+
+  <rect class="box" x="560" y="104" width="200" height="82" rx="8"/>
+  <text class="name" x="576" y="132">Artifact reducer</text>
+  <text class="detail" x="576" y="154">reorder buffer · seq checks</text>
+  <text class="detail" x="576" y="172">integrity · revision history</text>
+
+  <rect class="box" x="820" y="104" width="190" height="82" rx="8"/>
+  <text class="name" x="836" y="132">Canvas reducer</text>
+  <text class="detail" x="836" y="154">tabs · LRU eviction</text>
+  <text class="detail" x="836" y="172">pinned revisions</text>
+
+  <rect class="box" x="1060" y="104" width="180" height="82" rx="8"/>
+  <text class="name" x="1076" y="132">Sandboxed iframe</text>
+  <text class="detail" x="1076" y="154">sandbox="allow-scripts"</text>
+  <text class="detail" x="1076" y="172">CSP nonce · Sucrase JSX</text>
+
+  <!-- Browser, row 2: guardrails -->
+  <rect class="guard" x="560" y="218" width="200" height="82" rx="8"/>
+  <text class="name" x="576" y="246">Artifact guardrails</text>
+  <text class="detail" x="576" y="268">sinks · XSS · markup checks</text>
+  <text class="detail" x="576" y="286">fail closed → quarantine</text>
+
+  <rect class="guard" x="820" y="218" width="190" height="82" rx="8"/>
+  <text class="name" x="836" y="246">Critic loop</text>
+  <text class="detail" x="836" y="268">line-level defect report</text>
+  <text class="detail" x="836" y="286">≤ 2 repair requests</text>
+
+  <rect class="guard" x="1060" y="218" width="180" height="82" rx="8"/>
+  <text class="name" x="1076" y="246">Watchdog</text>
+  <text class="detail" x="1076" y="268">heartbeats · stall timeout</text>
+  <text class="detail" x="1076" y="286">circuit breaker</text>
+
+  <!-- Server -->
+  <rect class="box" x="40" y="404" width="240" height="96" rx="8"/>
+  <text class="mono" x="56" y="432">POST /api/chat</text>
+  <text class="detail" x="56" y="454">body cap · Zod schema</text>
+  <text class="detail" x="56" y="472">input guardrails · RFC 9457</text>
+  <text class="detail" x="56" y="490">problems on every failure</text>
+
+  <rect class="box" x="340" y="404" width="240" height="96" rx="8"/>
+  <text class="name" x="356" y="432">Agent client</text>
+  <text class="detail" x="356" y="454">bounded retries · jittered</text>
+  <text class="detail" x="356" y="472">backoff · Retry-After</text>
+  <text class="detail" x="356" y="490">connect + idle timeouts</text>
+
+  <rect class="box" x="640" y="404" width="240" height="96" rx="8"/>
+  <text class="name" x="656" y="432">Stream dispatcher</text>
+  <text class="detail" x="656" y="454">incremental SSE framer</text>
+  <text class="detail" x="656" y="472">schema-validated events</text>
+  <text class="detail" x="656" y="490">skips malformed frames</text>
+
+  <rect class="box" x="940" y="404" width="240" height="96" rx="8"/>
+  <text class="name" x="956" y="432">Stream bridge</text>
+  <text class="detail" x="956" y="454">agent events → UI chunks</text>
+  <text class="detail" x="956" y="472">transient artifact deltas</text>
+  <text class="detail" x="956" y="490">end-to-end backpressure</text>
+
+  <!-- Upstream -->
+  <rect class="box" x="340" y="616" width="540" height="64" rx="8"/>
+  <text class="name" x="356" y="644">Agent backend — BACKEND_SSE_URL</text>
+  <text class="detail" x="356" y="664">or the deterministic mock agent (AGENT_PROVIDER=mock, also served at /api/mock-agent)</text>
+
+  <!-- Request path -->
+  <path class="edge" d="M140 186 V 404" marker-end="url(#arrow)"/>
+  <text class="label" x="150" y="300">user prompt → POST</text>
+  <path class="edge" d="M280 452 H 340" marker-end="url(#arrow)"/>
+  <path class="edge" d="M460 500 V 616" marker-end="url(#arrow)"/>
+  <text class="label" x="470" y="566">POST · AbortSignal</text>
+
+  <!-- Stream path -->
+  <path class="edge" d="M760 616 V 500" marker-end="url(#arrow)"/>
+  <text class="label" x="770" y="566">text/event-stream</text>
+  <path class="edge" d="M880 452 H 940" marker-end="url(#arrow)"/>
+  <path class="edge" d="M1060 404 V 350 H 200 V 186" marker-end="url(#arrow)"/>
+  <text class="label" x="600" y="346">UI message stream (SSE v1)</text>
+
+  <!-- Browser flow -->
+  <path class="edge" d="M240 145 H 300" marker-end="url(#arrow)"/>
+  <path class="edge" d="M500 145 H 560" marker-end="url(#arrow)"/>
+  <path class="edge" d="M760 145 H 820" marker-end="url(#arrow)"/>
+  <path class="edge" d="M1010 145 H 1060" marker-end="url(#arrow)"/>
+  <path class="edge-guard" d="M660 186 V 218" marker-end="url(#arrow-guard)"/>
+  <path class="edge-guard" d="M760 259 H 820" marker-end="url(#arrow-guard)"/>
+  <path class="edge-guard" d="M1150 186 V 218" marker-start="url(#arrow-guard)" marker-end="url(#arrow-guard)"/>
+  <path class="edge-guard" d="M915 300 V 322 H 440 V 186" marker-end="url(#arrow-guard)"/>
+  <text class="label" x="560" y="318">repair request (bounded)</text>
+</svg>

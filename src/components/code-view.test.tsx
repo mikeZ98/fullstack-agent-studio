@@ -15,6 +15,19 @@ describe("CodeView", () => {
     expect(screen.getByText("2")).toHaveAttribute("aria-hidden");
   });
 
+  it("lays lines out as rows of an explicit table, with no newline inside empty lines", () => {
+    const { container } = render(<CodeView code={"a = 1\n\n\nb = 2"} language="py" />);
+    const code = container.querySelector("pre > code") as HTMLElement;
+    // Rows inside an inline <code> get anonymous table boxes, which Chrome lays out
+    // out of order once a line is empty.
+    expect(code).toHaveClass("table");
+    const rows = [...code.children];
+    expect(rows).toHaveLength(4);
+    expect(rows.every((row) => row.classList.contains("table-row"))).toBe(true);
+    expect(rows.map((row) => row.textContent)).toEqual(["1a = 1", "2 ", "3 ", "4b = 2"]);
+    expect(code.textContent).not.toContain("\n");
+  });
+
   it("can hide line numbers", () => {
     const { container } = render(<CodeView code="x" language="py" lineNumbers={false} />);
     expect(container.querySelector("[aria-hidden]")).toBeNull();
