@@ -274,6 +274,9 @@ describe(".dockerignore", () => {
     "src/components/studio.integration.test.tsx",
     "vitest.config.mts",
     "scripts/audit-attribution.sh",
+    "scripts/docker-smoke.sh",
+    ".github/workflows/ci.yml",
+    ".nvmrc",
     "Dockerfile",
     "docker-compose.yml",
   ])("keeps %s out of the build context", (file) => {

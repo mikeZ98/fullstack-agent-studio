@@ -36,6 +36,10 @@ biome.json
 scripts
 !scripts/healthcheck.mjs
 
+# CI and toolchain pins (the image pins its own Node.js)
+.github
+.nvmrc
+
 # Container and editor files
 Dockerfile
 .dockerignore

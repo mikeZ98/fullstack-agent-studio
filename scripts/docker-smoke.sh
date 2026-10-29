@@ -3,8 +3,9 @@
 # offline compose profile, waits for the HEALTHCHECKs, then verifies the non-root user and
 # one streamed chat turn end to end (studio-offline -> mock-agent over HTTP).
 #
-#   scripts/docker-smoke.sh            # uses host port 3001
+#   scripts/docker-smoke.sh                     # uses host port 3001
 #   SMOKE_PORT=4001 scripts/docker-smoke.sh
+#   SMOKE_SKIP_BUILD=1 scripts/docker-smoke.sh  # reuse an already built image (CI)
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -24,8 +25,12 @@ fail() {
   exit 1
 }
 
-echo "▸ Building the image"
-"${compose[@]}" build
+if [[ "${SMOKE_SKIP_BUILD:-0}" == "1" ]]; then
+  docker image inspect fullstack-agent-studio:local >/dev/null || fail "image fullstack-agent-studio:local not found"
+else
+  echo "▸ Building the image"
+  "${compose[@]}" build
+fi
 
 echo "▸ Starting the offline profile"
 if [[ "$port" != "3001" ]]; then
@@ -33,7 +38,7 @@ if [[ "$port" != "3001" ]]; then
   printf 'services:\n  studio-offline:\n    ports: !override ["%s:3000"]\n' "$port" >"$override"
   compose+=(--file docker-compose.yml --file "$override")
 fi
-"${compose[@]}" up --detach --wait --wait-timeout 120 studio-offline || fail "services did not become healthy"
+"${compose[@]}" up --detach --no-build --pull never --wait --wait-timeout 120 studio-offline || fail "services did not become healthy"
 
 user="$(docker image inspect --format '{{.Config.User}}' fullstack-agent-studio:local)"
 [[ "$user" == "nextjs:nodejs" ]] || fail "image runs as '$user', expected nextjs:nodejs"
