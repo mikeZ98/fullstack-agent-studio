@@ -211,6 +211,27 @@ describe("fault injection", () => {
     });
     expect(response.status).toBe(400);
     expect(server.stats.requests).toEqual([]);
+    expect(server.stats.received).toBe(0);
+  });
+
+  it("bounds the request log for long-running servers, but keeps counting", async () => {
+    const server = createMockAgentServer({
+      maxRecordedRequests: 2,
+      faults: { httpStatus: 503, failAttempts: 3 },
+    });
+    const statuses: number[] = [];
+    for (const chatId of ["c1", "c2", "c3", "c4"]) {
+      const response = await server.fetch("mock://agent", {
+        method: "POST",
+        body: JSON.stringify({ ...agentRequest, chatId }),
+      });
+      statuses.push(response.status);
+      await response.body?.cancel();
+    }
+    expect(server.stats.received).toBe(4);
+    expect(server.stats.requests.map((r) => r.chatId)).toEqual(["c3", "c4"]);
+    // Fault budgets count every request, not just the recorded ones.
+    expect(statuses).toEqual([503, 503, 503, 200]);
   });
 });
 

@@ -8,5 +8,7 @@ declare namespace NodeJS {
     readonly NEXT_PUBLIC_API_URL?: string;
     /** Any non-empty value disables env validation (CI lint/typegen only). */
     readonly SKIP_ENV_VALIDATION?: string;
+    /** Set by Next.js inside server code: which runtime is executing. */
+    readonly NEXT_RUNTIME?: "nodejs" | "edge";
   }
 }

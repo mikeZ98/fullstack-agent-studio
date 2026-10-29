@@ -1,0 +1,77 @@
+# Local orchestration for the agent studio.
+#
+#   docker compose up --build
+#     The studio on http://localhost:3000, configured from .env.example, overridden by an
+#     optional .env. Set BACKEND_SSE_URL to an agent reachable from the container (for a
+#     backend on the host: http://host.docker.internal:8000/v1/stream), or AGENT_PROVIDER=mock.
+#
+#   docker compose --profile offline up --build studio-offline
+#     Fully offline end to end: a studio on http://localhost:3001 whose upstream is a second
+#     container serving the mock agent over HTTP on an internal, egress-free network.
+#     scripts/docker-smoke.sh builds, starts and verifies exactly this setup.
+
+name: fullstack-agent-studio
+
+# One image serves every service: the browser calls the relative /api/chat, so the
+# NEXT_PUBLIC_API_URL build arg does not tie the bundle to a host or port.
+x-studio: &studio
+  image: fullstack-agent-studio:local
+  build:
+    context: .
+    dockerfile: Dockerfile
+    target: runner
+    args:
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3000/api}
+  init: true
+  restart: unless-stopped
+  # Hardened runtime: read-only root filesystem, no capabilities, no privilege escalation.
+  read_only: true
+  tmpfs:
+    - /tmp
+    - /app/.next/cache:uid=1001,gid=1001,mode=0700
+  cap_drop: [ALL]
+  security_opt: ["no-new-privileges:true"]
+  healthcheck:
+    test: ["CMD", "/nodejs/bin/node", "healthcheck.mjs"]
+    interval: 30s
+    timeout: 5s
+    retries: 3
+    start_period: 20s
+    start_interval: 2s
+
+services:
+  studio:
+    <<: *studio
+    ports: ["3000:3000"]
+    env_file:
+      - path: .env.example
+      - path: .env
+        required: false
+
+  mock-agent:
+    <<: *studio
+    profiles: [offline]
+    environment:
+      AGENT_PROVIDER: mock
+      BACKEND_SSE_URL: http://127.0.0.1:3000/api/mock-agent
+      NEXT_PUBLIC_API_URL: http://localhost:3001/api
+    networks: [offline]
+
+  studio-offline:
+    <<: *studio
+    profiles: [offline]
+    ports: ["3001:3000"]
+    environment:
+      AGENT_PROVIDER: upstream
+      BACKEND_SSE_URL: http://mock-agent:3000/api/mock-agent
+      NEXT_PUBLIC_API_URL: http://localhost:3001/api
+    networks: [default, offline]
+    depends_on:
+      mock-agent:
+        condition: service_healthy
+        restart: true
+
+networks:
+  # No route out: the mock agent cannot reach the internet, and nothing reaches it from outside.
+  offline:
+    internal: true

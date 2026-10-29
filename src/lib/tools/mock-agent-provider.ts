@@ -155,6 +155,11 @@ export interface MockAgentOptions {
   chunkBytes?: number;
   /** Pause between frames, for a realistic feel in development. */
   frameDelayMs?: number;
+  /**
+   * Keep at most this many requests in `stats.requests` (oldest dropped first). Long-running
+   * servers set a small bound so the log cannot grow without limit. Default: unbounded.
+   */
+  maxRecordedRequests?: number;
   faults?: MockFaults;
 }
 
@@ -307,7 +312,9 @@ function delay(ms: number, signal: AbortSignal): Promise<void> {
 }
 
 export interface MockAgentStats {
-  /** Requests received, in order (after body validation). */
+  /** Valid requests received so far. */
+  received: number;
+  /** The most recent requests, in order (after body validation). */
   requests: AgentRequest[];
   /** Responses answered with an injected error status. */
   failed: number;
@@ -332,7 +339,8 @@ function problemJson(problem: ProblemDetails, status: number, headers: HeadersIn
 /** A fetch-compatible mock agent backend. Ignores the URL; honours the request signal. */
 export function createMockAgentServer(options: MockAgentOptions = {}): MockAgentServer {
   const faults = options.faults ?? {};
-  const stats: MockAgentStats = { requests: [], failed: 0, cancelled: 0, aborted: 0 };
+  const stats: MockAgentStats = { received: 0, requests: [], failed: 0, cancelled: 0, aborted: 0 };
+  const maxRecorded = options.maxRecordedRequests ?? Number.POSITIVE_INFINITY;
 
   const mockFetch = async (
     _input: RequestInfo | URL,
@@ -347,12 +355,14 @@ export function createMockAgentServer(options: MockAgentOptions = {}): MockAgent
     } catch {
       return problemJson(createProblem("bad_request", { detail: "Invalid agent request" }), 400);
     }
+    stats.received++;
     stats.requests.push(request);
+    if (stats.requests.length > maxRecorded) stats.requests.shift();
 
     const status = faults.httpStatus;
     if (
       status !== undefined &&
-      stats.requests.length <= (faults.failAttempts ?? Number.POSITIVE_INFINITY)
+      stats.received <= (faults.failAttempts ?? Number.POSITIVE_INFINITY)
     ) {
       stats.failed++;
       const headers: Record<string, string> =

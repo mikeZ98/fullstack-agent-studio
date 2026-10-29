@@ -10,7 +10,10 @@ export const dynamic = "force-dynamic";
 const client = createAgentClient({
   endpoint: env.BACKEND_SSE_URL,
   ...(env.AGENT_PROVIDER === "mock"
-    ? { fetch: createMockAgentServer({ frameDelayMs: 20, toolSteps: 2 }).fetch }
+    ? {
+        fetch: createMockAgentServer({ frameDelayMs: 20, toolSteps: 2, maxRecordedRequests: 0 })
+          .fetch,
+      }
     : {}),
 });
 

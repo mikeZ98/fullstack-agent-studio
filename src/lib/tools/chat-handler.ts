@@ -24,10 +24,10 @@ export function problemResponse(problem: ProblemDetails, headers: HeadersInit = 
   });
 }
 
-type BodyResult = { ok: true; text: string } | { ok: false; problem: ProblemDetails };
+export type BodyResult = { ok: true; text: string } | { ok: false; problem: ProblemDetails };
 
 /** Read the request body without ever buffering more than `limit` bytes. */
-async function readBody(request: Request, limit: number): Promise<BodyResult> {
+export async function readBody(request: Request, limit: number): Promise<BodyResult> {
   const tooLarge = () =>
     ({
       ok: false,
